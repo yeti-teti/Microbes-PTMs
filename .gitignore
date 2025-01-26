@@ -1,3 +1,4 @@
 *.feather
 human*
 py
+.ipynb*

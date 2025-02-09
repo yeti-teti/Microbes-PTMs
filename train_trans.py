@@ -37,7 +37,7 @@ class PeptideDataset(Dataset):
         }, self.targets[idx]
 
 class PeptideTransformer(nn.Module):
-    def __init__(self, d_model=256, nhead=4, num_encoder_layers=4, dropout=0.1):
+    def __init__(self, d_model=128, nhead=2, num_encoder_layers=2, dropout=0.1):
         super().__init__()
         
         # Property embeddings
@@ -284,14 +284,14 @@ def main():
     # Initialize model and training parameters
     print("Initializing transformer model...")
     model = PeptideTransformer(
-        d_model=256,
-        nhead=8,
-        num_encoder_layers=6,
+        d_model=128,
+        nhead=2,
+        num_encoder_layers=2,
         dropout=0.1
     )
     
     criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     # Train model
@@ -302,7 +302,7 @@ def main():
         test_loader=test_loader,
         criterion=criterion,
         optimizer=optimizer,
-        num_epochs=50,
+        num_epochs=5,
         device=device,
         early_stopping_patience=5
     )

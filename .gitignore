@@ -1,0 +1,8 @@
+*.feather
+*.tar.gz
+py
+.ipynb*
+datasets
+notes.md
+TODO
+best_model.pth

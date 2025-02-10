@@ -309,7 +309,7 @@ def main():
         test_loader=test_loader,
         criterion=criterion,
         optimizer=optimizer,
-        num_epochs=5,
+        num_epochs=100,
         device=device,
         early_stopping_patience=5
     )

@@ -277,7 +277,7 @@ def main():
     # Prepare data
     print("Preparing data...")
     train_loader, test_loader, scaler = prepare_data(
-        train_encoded, test_encoded, target='y_target', batch_size=32
+        train_encoded, test_encoded, target='y_target', batch_size=2048
     )
     
 

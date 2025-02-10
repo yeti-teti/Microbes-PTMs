@@ -1,3 +1,5 @@
+import os
+import pickle
 import torch
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
@@ -5,10 +7,7 @@ from torch.amp import GradScaler, autocast
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
-import matplotlib.pyplot as plt
-import seaborn as sns
 from rich import print, progress
-import math
 
 # -----------------------
 #     Dataset Class
@@ -154,7 +153,7 @@ def prepare_data(train_encoded, test_encoded, target='y_target', batch_size=2048
 # -----------------------
 def train_model(model, train_loader, test_loader, criterion, optimizer, 
                 num_epochs=5, device='cuda', early_stopping_patience=5):
-    """Train model with early stopping + mixed-precision support."""
+    """Train model with early stopping and mixed-precision support."""
     model.to(device)
     best_val_loss = float('inf')
     patience_counter = 0
@@ -182,7 +181,7 @@ def train_model(model, train_loader, test_loader, criterion, optimizer,
                 outputs = model(batch_features)
                 loss = criterion(outputs, batch_targets)
             
-            # Backward
+            # Backward pass
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
@@ -203,7 +202,6 @@ def train_model(model, train_loader, test_loader, criterion, optimizer,
                 batch_features = {k: v.to(device, non_blocking=True) for k, v in batch_features.items()}
                 batch_targets = batch_targets.to(device, non_blocking=True)
                 
-                # Mixed-precision forward in validation
                 with torch.cuda.amp.autocast(enabled=(device=='cuda')):
                     outputs = model(batch_features)
                     v_loss = criterion(outputs, batch_targets)
@@ -212,13 +210,13 @@ def train_model(model, train_loader, test_loader, criterion, optimizer,
                 val_predictions.extend(outputs.cpu().numpy())
                 val_actuals.extend(batch_targets.cpu().numpy())
         
-        # Calculate metrics
-        train_loss = train_loss / len(train_loader)
-        val_loss = val_loss / len(test_loader)
+        # Calculate metrics per epoch
+        train_loss /= len(train_loader)
+        val_loss /= len(test_loader)
         train_correlation = np.corrcoef(train_actuals, train_predictions)[0, 1]
         val_correlation = np.corrcoef(val_actuals, val_predictions)[0, 1]
         
-        # Record history
+        # Record epoch history
         training_history.append({
             'epoch': epoch + 1,
             'train_loss': train_loss,
@@ -227,7 +225,6 @@ def train_model(model, train_loader, test_loader, criterion, optimizer,
             'val_correlation': val_correlation
         })
         
-        # Print progress
         print(f'\nEpoch {epoch+1}/{num_epochs}:')
         print(f'  Training Loss: {train_loss:.4f}, Correlation: {train_correlation:.4f}')
         print(f'  Validation Loss: {val_loss:.4f}, Correlation: {val_correlation:.4f}')
@@ -250,7 +247,7 @@ def train_model(model, train_loader, test_loader, criterion, optimizer,
 #      Evaluation
 # -----------------------
 def evaluate_model(model, test_loader, device='cuda'):
-    """Evaluate model and return predictions."""
+    """Evaluate model and return predictions and actuals."""
     model.eval()
     predictions = []
     actuals = []
@@ -269,43 +266,9 @@ def evaluate_model(model, test_loader, device='cuda'):
     return np.array(predictions), np.array(actuals)
 
 # -----------------------
-#      Plot Results
-# -----------------------
-def plot_results(history, predictions, actuals):
-    """Plot training history and final predictions vs. actuals."""
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 5))
-    
-    # Plot losses
-    ax1.plot(history['epoch'], history['train_loss'], label='Training Loss')
-    ax1.plot(history['epoch'], history['val_loss'], label='Validation Loss')
-    ax1.set_xlabel('Epoch')
-    ax1.set_ylabel('Loss')
-    ax1.set_title('Training and Validation Loss')
-    ax1.legend()
-    
-    # Plot correlations
-    ax2.plot(history['epoch'], history['train_correlation'], label='Training Correlation')
-    ax2.plot(history['epoch'], history['val_correlation'], label='Validation Correlation')
-    ax2.set_xlabel('Epoch')
-    ax2.set_ylabel('Correlation')
-    ax2.set_title('Training and Validation Correlation')
-    ax2.legend()
-    
-    # Plot predictions vs actuals
-    ax3.scatter(actuals, predictions, alpha=0.1)
-    ax3.plot([0, 1], [0, 1], 'r--')
-    ax3.set_xlabel('Actual Values')
-    ax3.set_ylabel('Predicted Values')
-    ax3.set_title(f'Predictions vs Actuals\nr={np.corrcoef(actuals, predictions)[0,1]:.3f}')
-    
-    plt.tight_layout()
-    plt.show()
-
-# -----------------------
 #          Main
 # -----------------------
 def main():
-    # Load prepared data
     print("Loading data...")
     train_encoded = pd.read_feather(
         "ftp://ftp.pride.ebi.ac.uk/pub/databases/pride/resources/proteomicsml/fragmentation/nist-humanhcd20160503-parsed-trainval-encoded.feather"
@@ -314,11 +277,10 @@ def main():
         "ftp://ftp.pride.ebi.ac.uk/pub/databases/pride/resources/proteomicsml/fragmentation/nist-humanhcd20160503-parsed-test-encoded.feather"
     )
     
-    # Limit both datasets to only 10,000 instances
+    # Randomly sample 10,000 instances from each dataset
     train_encoded = train_encoded.sample(n=10000, random_state=42)
     test_encoded = test_encoded.sample(n=10000, random_state=42)
 
-    # Prepare data
     print("Preparing data...")
     train_loader, test_loader, scaler = prepare_data(
         train_encoded, test_encoded,
@@ -326,7 +288,6 @@ def main():
         batch_size=2048  # Large batch size to utilize the GPU more
     )
     
-    # Initialize model + optimizer + loss
     print("Initializing transformer model...")
     model = PeptideTransformer(
         d_model=256,   # Increased dimension
@@ -341,7 +302,6 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
-    # Train model
     print("Training model...")
     history = train_model(
         model=model,
@@ -354,18 +314,23 @@ def main():
         early_stopping_patience=5
     )
     
-    # Load best model and evaluate
     print("Evaluating model...")
     model.load_state_dict(torch.load('best_transformer_model.pth'))
     predictions, actuals = evaluate_model(model, test_loader, device)
     
-    # Plot results
-    print("Plotting results...")
-    plot_results(history, predictions, actuals)
-    
-    # Print final correlation
     correlation = np.corrcoef(actuals, predictions)[0, 1]
     print(f'\nFinal Test Set Correlation: {correlation:.4f}')
+    
+    # Save the results for plotting
+    results = {
+        'history': history,         # A pandas DataFrame
+        'predictions': predictions, # A NumPy array
+        'actuals': actuals          # A NumPy array
+    }
+    os.makedirs("results", exist_ok=True)
+    with open("results/results.pkl", "wb") as f:
+        pickle.dump(results, f)
+    print("Results saved to results/results.pkl")
     
     return predictions, actuals, history
 

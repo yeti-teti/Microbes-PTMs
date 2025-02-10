@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
+from torch.amp import GradScaler, autocast
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
@@ -142,7 +143,7 @@ def prepare_data(train_encoded, test_encoded, target='y_target', batch_size=2048
         test_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=8,          # Also use multiple workers for test data
+        num_workers=16,          # Also use multiple workers for test data
         pin_memory=True
     )
     
@@ -160,7 +161,7 @@ def train_model(model, train_loader, test_loader, criterion, optimizer,
     training_history = []
     
     # Set up GradScaler for mixed-precision
-    scaler = torch.cuda.amp.GradScaler(enabled=(device=='cuda'))
+    scaler = GradScaler(enabled=(device=='cuda')) 
     
     for epoch in range(num_epochs):
         # Training phase
@@ -177,7 +178,7 @@ def train_model(model, train_loader, test_loader, criterion, optimizer,
             optimizer.zero_grad()
             
             # Mixed-precision forward
-            with torch.cuda.amp.autocast(enabled=(device=='cuda')):
+            with autocast(device_type='cuda', enabled=(device=='cuda')):
                 outputs = model(batch_features)
                 loss = criterion(outputs, batch_targets)
             
@@ -344,7 +345,7 @@ def main():
         test_loader=test_loader,
         criterion=criterion,
         optimizer=optimizer,
-        num_epochs=5,                  # Adjust as needed
+        num_epochs=5,
         device=device,
         early_stopping_patience=5
     )

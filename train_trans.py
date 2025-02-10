@@ -278,7 +278,7 @@ def main():
     )
     
     # Randomly sample 10,000 instances from each dataset
-    train_encoded = train_encoded.sample(n=10000, random_state=42)
+    train_encoded = train_encoded.sample(n=100000, random_state=42)
     test_encoded = test_encoded.sample(n=10000, random_state=42)
 
     print("Preparing data...")

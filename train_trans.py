@@ -135,7 +135,7 @@ def prepare_data(train_encoded, test_encoded, target='y_target', batch_size=2048
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=1,           # Increase number of workers
+        num_workers=8,           # Increase number of workers
         pin_memory=True          # Pin memory for faster GPU transfers
     )
     test_loader = DataLoader(

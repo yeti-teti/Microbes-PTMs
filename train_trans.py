@@ -21,10 +21,10 @@ class PeptideDataset(Dataset):
         """
         # Group features by property type
         self.basicity = torch.FloatTensor(features[:, :20])       # First 20 features are basicity
-        self.helicity = torch.FloatTensor(features[:, 20:40])     # Next 20 are helicity
-        self.hydrophobicity = torch.FloatTensor(features[:, 40:60])   # Next 20 are hydrophobicity
-        self.pi = torch.FloatTensor(features[:, 60:76])           # Next 16 are pI
-        self.global_features = torch.FloatTensor(features[:, 76:]) # Last 2 are global features
+        self.helicity = torch.FloatTensor(features[:, 20:40])       # Next 20 are helicity
+        self.hydrophobicity = torch.FloatTensor(features[:, 40:60])  # Next 20 are hydrophobicity
+        self.pi = torch.FloatTensor(features[:, 60:76])              # Next 16 are pI
+        self.global_features = torch.FloatTensor(features[:, 76:])   # Last 2 are global features
         
         self.targets = torch.FloatTensor(targets)
         
@@ -313,6 +313,10 @@ def main():
     test_encoded = pd.read_feather(
         "ftp://ftp.pride.ebi.ac.uk/pub/databases/pride/resources/proteomicsml/fragmentation/nist-humanhcd20160503-parsed-test-encoded.feather"
     )
+    
+    # Limit both datasets to only 10,000 instances
+    train_encoded = train_encoded.sample(n=10000, random_state=42)
+    test_encoded = test_encoded.sample(n=10000, random_state=42)
 
     # Prepare data
     print("Preparing data...")

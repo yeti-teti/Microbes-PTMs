@@ -123,7 +123,7 @@ def prepare_data(train_encoded, test_encoded, target='y_target', batch_size=32):
     test_dataset = PeptideDataset(X_test_scaled, y_test)
     
     # Create dataloaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers= 4, pin_memory=True)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
     return train_loader, test_loader, scaler

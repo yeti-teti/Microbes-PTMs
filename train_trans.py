@@ -9,15 +9,9 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 from rich import print, progress
 
-# -----------------------
-#     Dataset Class
-# -----------------------
+# Dataset Class
 class PeptideDataset(Dataset):
     def __init__(self, features, targets):
-        """
-        features: numpy array of shape (n_samples, n_features)
-        targets: numpy array of shape (n_samples,)
-        """
         # Group features by property type
         self.basicity = torch.FloatTensor(features[:, :20])       # First 20 features are basicity
         self.helicity = torch.FloatTensor(features[:, 20:40])       # Next 20 are helicity
@@ -39,14 +33,11 @@ class PeptideDataset(Dataset):
             'global': self.global_features[idx]
         }, self.targets[idx]
 
-# -----------------------
-#     Model Definition
-# -----------------------
+
+# Model Definition
 class PeptideTransformer(nn.Module):
     def __init__(self, d_model=256, nhead=2, num_encoder_layers=2, dropout=0.1):
-        """
-        Increased d_model to 256 for a bit more computational load.
-        """
+    
         super().__init__()
         
         # Property embeddings
@@ -108,11 +99,9 @@ class PeptideTransformer(nn.Module):
         
         return output.squeeze(-1)
 
-# -----------------------
-#    Data Preparation
-# -----------------------
+# Data Preparation
 def prepare_data(train_encoded, test_encoded, target='y_target', batch_size=2048):
-    """Prepare data for training with scaling and DataLoader setup."""
+    
     feature_cols = [col for col in train_encoded.columns 
                     if col not in ['spectrum_id', 'b_target', 'y_target']]
     
@@ -148,12 +137,11 @@ def prepare_data(train_encoded, test_encoded, target='y_target', batch_size=2048
     
     return train_loader, test_loader, scaler
 
-# -----------------------
-#      Training Loop
-# -----------------------
+
+# Training Loop
 def train_model(model, train_loader, test_loader, criterion, optimizer, 
                 num_epochs=5, device='cuda', early_stopping_patience=5):
-    """Train model with early stopping and mixed-precision support."""
+    
     model.to(device)
     best_val_loss = float('inf')
     patience_counter = 0
@@ -163,6 +151,7 @@ def train_model(model, train_loader, test_loader, criterion, optimizer,
     scaler = GradScaler(enabled=(device=='cuda')) 
     
     for epoch in range(num_epochs):
+
         # Training phase
         model.train()
         train_loss = 0
@@ -243,11 +232,10 @@ def train_model(model, train_loader, test_loader, criterion, optimizer,
     
     return pd.DataFrame(training_history)
 
-# -----------------------
-#      Evaluation
-# -----------------------
+
+# Evaluation
 def evaluate_model(model, test_loader, device='cuda'):
-    """Evaluate model and return predictions and actuals."""
+    
     model.eval()
     predictions = []
     actuals = []
@@ -265,9 +253,8 @@ def evaluate_model(model, test_loader, device='cuda'):
     
     return np.array(predictions), np.array(actuals)
 
-# -----------------------
-#          Main
-# -----------------------
+
+# Main 
 def main():
     print("Loading data...")
     train_encoded = pd.read_feather(
@@ -277,7 +264,7 @@ def main():
         "ftp://ftp.pride.ebi.ac.uk/pub/databases/pride/resources/proteomicsml/fragmentation/nist-humanhcd20160503-parsed-test-encoded.feather"
     )
     
-    # Randomly sample 10,000 instances from each dataset
+    # Randomly sample instances from each dataset
     train_encoded = train_encoded.sample(n=100000, random_state=42)
     test_encoded = test_encoded.sample(n=10000, random_state=42)
 

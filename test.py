@@ -1,7 +1,4 @@
 import os
-import re
-import tarfile
-import urllib
 import pickle
 import numpy as np
 import pandas as pd
@@ -11,15 +8,13 @@ import torch
 from torch import nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-# Use older style autocast / GradScaler usage
+
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import Subset
 from sklearn.model_selection import train_test_split
 
 
-######################
-# Device Selection   #
-######################
+# Device Selection
 def get_device():
     if torch.cuda.is_available():
         return torch.device("cuda")
@@ -32,15 +27,8 @@ device = get_device()
 print(f"Using device: {device}")
 
 
-######################
-# Data Preparation   #
-######################
+# Data Preparaion
 def read_msp(filename):
-    """
-    Iterate over an MSP spectral library file and yield each spectrum as a dict.
-    Each spectrum entry contains metadata (e.g. Name, Parent, Charge, Mods, etc.) 
-    and the peak list (m/z and intensity).
-    """
     spectrum = {}
     mz = []
     intensity = []
@@ -86,27 +74,11 @@ def read_msp(filename):
         spectrum["annotation"] = np.array(annotation, dtype="str")
         yield spectrum
 
-def bin_spectrum(mz_array, intensity_array, num_bins=2000, max_mz=2000):
-    """
-    Bin the spectrum peaks into a fixed-length vector of length num_bins,
-    using integer m/z values as bin indices (0 <= m/z < max_mz).
-    """
-    binned = np.zeros(num_bins, dtype=np.float32)
-    for m, inten in zip(mz_array, intensity_array):
-        if m < max_mz:
-            bin_idx = int(m)
-            if bin_idx < num_bins:
-                binned[bin_idx] += inten
-    return binned
 
-
-########################################
-# DeNovoPeptideDataset for DataLoader  #
-########################################
+# Dataloader 
 class DeNovoPeptideDataset(Dataset):
-    def __init__(self, msp_filename, num_bins=2000, max_mz=2000, max_length=35):
+    def __init__(self, msp_filename, max_mz=2000, max_length=35):
         self.samples = list(read_msp(msp_filename))
-        self.num_bins = num_bins
         self.max_mz = max_mz
         self.max_length = max_length
         
@@ -124,11 +96,7 @@ class DeNovoPeptideDataset(Dataset):
         precursor_mz = float(sample.get("Parent", 0))
         charge = int(sample.get("Charge", 0))
         
-        # Bin the fragment spectrum
-        binned = bin_spectrum(sample["mz"], sample["intensity"], 
-                              num_bins=self.num_bins, max_mz=self.max_mz)
-        # Input vector = binned intensities + [precursor_mz, charge]
-        input_vector = np.concatenate([binned, np.array([precursor_mz, charge], dtype=np.float32)])
+        input_vector = np.array([precursor_mz, charge], dtype=np.float32)
         
         # Target sequence
         sequence = sample["sequence"]
@@ -155,9 +123,7 @@ class DeNovoPeptideDataset(Dataset):
         return input_tensor, (target_tokens_tensor, target_offsets_tensor)
 
 
-###############################################
-# DeNovoPeptideSequencer: Transformer Model   #
-###############################################
+# Transformer Model
 class DeNovoPeptideSequencer(nn.Module):
     def __init__(self, input_dim, num_tokens=21, max_length=35, 
                  d_model=256, nhead=4, num_decoder_layers=3, dropout=0.1):
@@ -202,14 +168,9 @@ class DeNovoPeptideSequencer(nn.Module):
         return residue_logits, ptm_offsets
 
 
-########################################
-# Training Loop                        #
-########################################
+# Training Loop
 def train_model(model, dataloader, optimizer, device, num_epochs=10, alpha=1.0):
-    """
-    - Cross entropy for residue classification
-    - MSE for PTM offset regression, scaled by alpha
-    """
+    
     model.to(device)
     model.train()
     
@@ -261,9 +222,7 @@ def train_model(model, dataloader, optimizer, device, num_epochs=10, alpha=1.0):
     return history
 
 
-########################################
-# Evaluation Loop                      #
-########################################
+# Evaluation 
 def evaluate_model(model, dataloader, device):
     model.eval()
     all_preds_tokens = []
@@ -295,14 +254,11 @@ def evaluate_model(model, dataloader, device):
     return (all_preds_tokens, all_preds_offsets), (all_targets_tokens, all_targets_offsets)
 
 
-########################################
-# Main Entry Point                     #
-########################################
 def main():
     msp_file = "datasets/human_hcd_tryp_best.msp"
     
     # Build dataset
-    dataset = DeNovoPeptideDataset(msp_file, num_bins=2000, max_mz=2000, max_length=35)
+    dataset = DeNovoPeptideDataset(msp_file, max_mz=2000, max_length=35)
     print(f"Total samples in dataset: {len(dataset)}")
     
     # Split
@@ -319,7 +275,7 @@ def main():
                              num_workers=0, pin_memory=False)
     
     # Model
-    input_dim = 2000 + 2
+    input_dim = 2
     model = DeNovoPeptideSequencer(
         input_dim=input_dim, 
         num_tokens=21, 

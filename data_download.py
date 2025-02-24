@@ -1,5 +1,5 @@
 import tarfile
-import urllib
+import urllib.request
 
 
 library_file = "human_hcd_tryp_best.msp"
